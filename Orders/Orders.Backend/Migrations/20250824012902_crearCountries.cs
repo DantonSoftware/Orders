@@ -5,7 +5,7 @@
 namespace Orders.Backend.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialDb : Migration
+    public partial class crearCountries : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -20,11 +20,11 @@ namespace Orders.Backend.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_MyProperty", x => x.Id);
+                    table.PrimaryKey("PK_Countries", x => x.Id);
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_MyProperty_Name",
+                name: "IX_Countries_Name",
                 table: "Countries",
                 column: "Name",
                 unique: true);
