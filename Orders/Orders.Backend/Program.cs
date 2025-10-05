@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Orders.Backend.Data;
 using Orders.Backend.Repositories.Implementations;
 using Orders.Backend.Repositories.Interfaces;
@@ -15,31 +15,42 @@ builder.Services.AddControllers().AddJsonOptions(x => x.JsonSerializerOptions.Re
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<DataContext>(x => x.UseSqlServer("name=LocalConnection"));
+// ⚠️ Usa la cadena desde appsettings.json (NO "name=LocalConnection")
+var cn = builder.Configuration.GetConnectionString("LocalConnection");
+// DbContext con mayor timeout
+builder.Services.AddDbContext<DataContext>(opt =>
+    opt.UseSqlServer(cn, sql => sql.CommandTimeout(180)));
+//
+//uilder.Services.AddDbContext<DataContext>(x => x.UseSqlServer("name=LocalConnection"));
 builder.Services.AddTransient<SeedDb>();
 
 builder.Services.AddScoped(typeof(IGenericUnitOfWork<>), typeof(GenericUnitOfWork<>));
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
+builder.Services.AddScoped<ICitiesRepository, CitiesRepository>();
 builder.Services.AddScoped<ICountriesRepository, CountriesRepository>();
 builder.Services.AddScoped<IStatesRepository, StatesRepository>();
 
+builder.Services.AddScoped<ICitiesUnitOfWork, CitiesUnitOfWork>();
 builder.Services.AddScoped<ICountriesUnitOfWork, CountriesUnitOfWork>();
 builder.Services.AddScoped<IStatesUnitOfWork, StatesUnitOfWork>();
 
 var app = builder.Build();
 
-SeedData(app);
+// ---- Migrar y seed ANTES de Run, con await ----
+await MigrateAndSeedAsync(app);
 
-void SeedData(WebApplication app)
-{
-    var scopedFactory = app.Services.GetService<IServiceScopeFactory>();
-    using (var scope = scopedFactory.CreateScope())
-    {
-        var service = scope.ServiceProvider.GetService<SeedDb>();
-        service!.SeedAsync().Wait();
-    }
-}
+//SeedData(app);
+
+//void SeedData(WebApplication app)
+//{
+//    var scopedFactory = app.Services.GetService<IServiceScopeFactory>();
+//    using (var scope = scopedFactory.CreateScope())
+//    {
+//        var service = scope.ServiceProvider.GetService<SeedDb>();
+//        service!.SeedAsync().Wait();
+//    }
+//}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -54,4 +65,19 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.Run();
+//app.Run();
+await app.RunAsync();
+
+// ---------- helpers ----------
+static async Task MigrateAndSeedAsync(WebApplication app)
+{
+    using var scope = app.Services.CreateScope();
+    var ctx = scope.ServiceProvider.GetRequiredService<DataContext>();
+
+    // Aplica migraciones pendientes
+    await ctx.Database.MigrateAsync();
+
+    // Ejecuta el seeder
+    var seeder = scope.ServiceProvider.GetRequiredService<SeedDb>();
+    await seeder.SeedAsync();
+}
